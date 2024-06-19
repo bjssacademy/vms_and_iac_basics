@@ -1,0 +1,388 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "team_name": {
+            "type": "string",
+            "metadata": {
+                "description": "This is your team name"
+            }
+        },
+        "user_id": {
+            "type": "string",
+            "metadata": {
+                "description": "This is your user ID"
+            }
+        }
+    },
+    "functions": [
+        {
+            "namespace": "naming",
+            "members": {
+                "resource": {
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teamname",
+                            "type": "string"
+                        },
+                        {
+                            "name": "userid",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[tolower(concat(parameters('name'), '-', 'academyarm', '-', parameters('teamname'), '-', parameters('userid')))]"
+                    }
+                },
+                "NoHypensResource": {
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teamname",
+                            "type": "string"
+                        },
+                        {
+                            "name": "userid",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[tolower(concat(parameters('name'), parameters('teamname'), parameters('userid')))]"
+                    }
+                },
+                "group": {
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teamname",
+                            "type": "string"
+                        },
+                        {
+                            "name": "userid",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[tolower(concat(parameters('name'), '-','academyarm', '-', parameters('teamname'), '-', parameters('userid')))]"
+                    }
+                }
+            }
+        }
+    ],
+    "variables": {
+        "tenant_id": "[subscription().tenantId]",
+        "location": "uksouth",
+        "ACAdmins": "b6196474-693c-4f6c-8a1a-212fd15f3369",
+
+        "networks": {
+            "vnetName": "[naming.resource('vnet', parameters('team_name'), parameters('user_id'))]",
+            "vnetAddressSpace": "10.0.0.0/16",
+            "subnetName": "[naming.resource('snet', parameters('team_name'), parameters('user_id'))]",
+            "subnetAddressPrefix": "10.0.1.0/24",
+            "public_ip_name": "[naming.resource('pip', parameters('team_name'), parameters('user_id'))]",
+            "nsg_name": "[naming.resource('nsg', parameters('team_name'), parameters('user_id'))]",
+            "nic_name": "[naming.resource('nic', parameters('team_name'), parameters('user_id'))]",
+            "endpoints": [
+                {
+                    "service": "Microsoft.KeyVault"
+                },
+                {
+                    "service": "Microsoft.Storage"
+                }
+            ]
+
+
+        },
+        "OSConfig": {
+            "vmsize": "Standard_B1ls",
+            "vmName": "[naming.resource('vm', parameters('team_name'), parameters('user_id'))]",
+            "instances": 1,
+            "OSname": "[concat(parameters('user_id'), 'vm')]",
+            "OSPlan": "Default",
+            "OSusername": "[parameters('user_id')]",
+            "OSpassword": "[concat(uniqueString('G', parameters('user_id'), 'M' ,parameters('team_name')), 'E!')]",
+            "osDiskType": "Standard_LRS",
+            "OSImagePublisher": "Canonical",
+            "OSImageOffer": "UbuntuServer",
+            "OSImageSku": "18.04-LTS",
+            "OSImageVersion": "latest",
+            "nginxDownload": "https://academyscripts.blob.core.windows.net/scripts/install_nginx.sh"
+        },
+        "keyVault": {
+            "name": "[naming.NoHypensResource('kv', parameters('team_name'), parameters('user_id'))]",
+            "sku": [
+                {
+                    "name": "premium",
+                    "family": "A"
+                }
+            ]
+        },
+        "tags": {
+            "Project": "academy2022",
+            "team": "[parameters('team_name')]",
+            "user": "[parameters('user_id')]",
+            "mynewtag": "mynewtagvalue"
+        }
+    },
+    "resources": [
+        {
+            "apiVersion": "2018-02-01",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "location": "[variables('location')]",
+            "dependsOn": [
+            ],
+            "name": "[variables('networks').nsg_name]",
+            "tags": "[variables('tags')]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "access": "Allow",
+                            "description": "This NSG rule will permit connection inbound through port 22",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "destinationPortRange": "22",
+                            "direction": "Inbound",
+                            "priority": 100,
+                            "protocol": "Tcp",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*"
+                        }
+                    },
+                    {
+                        "name": "HTTP",
+                        "properties": {
+                            "access": "Allow",
+                            "description": "",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "destinationPortRange": "80",
+                            "direction": "Inbound",
+                            "priority": 110,
+                            "protocol": "Tcp",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2018-12-01",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('networks').vnetName]",
+            "location": "[variables('location')]",
+            "tags": "[variables('tags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networks').nsg_name)]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [ "[variables('networks').vnetAddressSpace]" ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('networks').subnetName]",
+                        "properties": {
+                            "addressPrefix": "[variables('networks').subnetAddressPrefix]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networks').nsg_name)]"
+                            },
+                            "serviceEndpoints": "[variables('networks').endpoints]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('networks').nic_name]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups/', variables('networks').nsg_name)]",
+                "[resourceId('Microsoft.Network/virtualNetworks/', variables('networks').vnetName)]",
+                "[resourceId('Microsoft.Network/publicIpAddresses/', variables('networks').public_ip_name)]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "subnet": {
+                                "id": "[resourceid('Microsoft.Network/virtualNetworks/subnets', variables('networks').vnetName, variables('networks').subnetName)]"
+                            },
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIpAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('networks').public_ip_name)]"
+                            }
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups',variables('networks').nsg_name)]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIpAddresses",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('networks').public_ip_name]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+            ],
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            },
+            "properties": {
+                "publicIpAllocationMethod": "Dynamic",
+                "publicIPAddressVersion": "IPv4",
+                "idleTimeoutInMinutes": 4
+            }
+        },
+        {
+            "apiVersion": "2018-02-14",
+            "type": "Microsoft.KeyVault/vaults",
+            "name": "[variables('keyVault').name]",
+            "location": "[variables('location')]",
+            "tags": "[variables('tags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('networks').vnetName)]"
+            ],
+            "properties": {
+                "tenantId": "[variables('tenant_id')]",
+                "enabledForDeployment": true,
+                "enabledForDiskEncryption": true,
+                "enabledForTemplateDeployment": true,
+                "sku": {
+                    "family": "A",
+                    "name": "standard"
+                },
+                "networkAcls": {
+                    "defaultAction": "Allow",
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [
+                    ]
+                },
+                "accessPolicies": [
+                    {
+                        "tenantId": "[variables('tenant_id')]",
+                        "objectId": "[variables('ACAdmins')]",
+                        "permissions": {
+                            "secrets": [ "Get", "Set", "List" ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2018-02-14",
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(variables('keyVault').name, '/OSLogin')]",
+            "tags": "[variables('tags')]",
+            "properties": {
+                "value": "[variables('OSConfig').OSusername]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.KeyVault/vaults/', variables('keyVault').name)]"
+            ]
+        },
+        {
+            "apiVersion": "2018-02-14",
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(variables('keyVault').name, '/OSPassword')]",
+            "tags": "[variables('tags')]",
+            "properties": {
+                "value": "[variables('OSConfig').OSpassword]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.KeyVault/vaults/', variables('keyVault').name)]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('OSConfig').vmName]",
+            "location": "[variables('location')]",
+            "tags": "[variables('tags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces/', variables('networks').nic_name)]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('OSConfig').vmsize]"
+                },
+                "storageProfile": {
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "[variables('OSConfig').osDiskType]"
+                        }
+                    },
+                    "imageReference": {
+                        "publisher": "[variables('OSConfig').OSImagePublisher]",
+                        "offer": "[variables('OSConfig').OSImageOffer]",
+                        "sku": "[variables('OSConfig').OSImageSku]",
+                        "version": "[variables('OSConfig').OSImageVersion]"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networks').nic_name)]"
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[variables('OSConfig').OSname]",
+                    "adminUsername": "[variables('OSConfig').OSusername]",
+                    "adminPassword": "[variables('OSConfig').OSpassword]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    }
+
+                }
+            },
+            "resources": [
+                {
+                    "apiVersion": "2019-07-01",
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "name": "[concat(variables('OSConfig').vmName, '/Setup')]",
+                    "location": "[variables('location')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/', variables('OSConfig').vmName)]"
+                    ],
+                    "properties": {
+                        "publisher": "Microsoft.Azure.Extensions",
+                        "type": "CustomScript",
+                        "typeHandlerVersion": "2.1",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                        },
+                        "protectedSettings": {
+                            "fileUris": [
+                                "[variables('OSConfig').nginxDownload]"
+                            ],
+                            "commandToExecute": "./install_nginx.sh"
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "outputs": {
+    }
+}

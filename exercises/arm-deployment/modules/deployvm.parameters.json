@@ -3,10 +3,10 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "team_name": {
-            "value": "james"
+            "value": "team_name"
         },
         "user_id": {
-            "value": "hewitt"
+            "value": "user_name"
         }
     }
 }

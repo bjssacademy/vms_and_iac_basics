@@ -1,65 +1,3 @@
-# Bicep Overview and Azure VM Deployment Guide
-
-Bicep is a language that simplifies the creation and management of Azure resources, offering a more streamlined and declarative syntax compared to ARM templates.
-
-## Bicep Overview
-
-Bicep is a Domain Specific Language (DSL) that simplifies the authoring and management of Azure Resource Manager (ARM) templates. It provides a more readable and maintainable syntax compared to the JSON format used in ARM templates.
-
-### Key Points
-
-- **Declarative Syntax** 
-
-Bicep uses a declarative syntax, which means you describe the desired state of your Azure resources without specifying the step-by-step instructions for achieving that state. This is in contrast to imperative languages where you would define how to achieve the desired state.
-
-In practical terms, with Bicep's declarative syntax, you specify:
-
-What Azure resources you want (e.g., virtual machines, networks, databases).
-Configuration details of these resources (e.g., VM size, network settings).
-
-
-- **Modularity** 
-
-Bicep allows you to break down your infrastructure code into reusable components. This makes your templates more maintainable and reduces duplication. Modules in Bicep can encapsulate related resources and configurations, which you can then reference and reuse across different parts of your deployment.
-
-For example, you can create a module for deploying a virtual machine that includes the VM configuration, networking, and storage settings. This module can be reused in multiple Bicep files, enhancing consistency and reducing errors.
-
-- **Compile-time Validation** 
-
-One of the standout features of Bicep is its compile-time validation. When you author a Bicep file, the Bicep compiler checks the syntax, structure, and dependencies of your code before deploying it. This means Syntax errors, incorrect resource references, or missing required parameters are caught during compilation rather than during deployment. Bicep understands the Azure resource types and their properties. It ensures that you are using valid resource types and that your configurations align with Azure’s requirements.
-
-This compile-time validation is a *significant* improvement over ARM templates, where errors often surface only during deployment!
-
----
-
-## Getting Started with Bicep
-
-1. If you don't have an Azure account, sign up at [azure.microsoft.com](azure.microsoft.com).
-2. Install Bicep CLI from [learn.microsoft.com](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install).
-
-
-## Setup
-
-1. Use Azure CLI to login.
-
-```bash
-az login  --tenant [ask your tutor for tenant id] --use-device-code
-```
-
-Follow the instructions to log into your Azure account in a browser
-
-2. Create a new directory for your Bicep files.
-
-```bash
-mkdir bicep-azure-vm
-cd bicep-azure-vm
-```
-
-## Deploying an Azure Virtual Machine with Nginx using Bicep
-
-Create a Bicep file (`main.bicep`) with parameters for customization:
-
-```bicep
 @description('The team name for the deployment.')
 param teamName string
 
@@ -301,63 +239,25 @@ resource nginx 'Microsoft.Compute/virtualMachines/extensions@2024-03-01' = {
   }
 }
 
+/*resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-03-01' = {
+  parent: vm
+  name: 'installNginx'
+  location: location
+  properties: {
+    timeoutInSeconds: (60 * 90)
+    asyncExecution: false
+    runAsUser: 'root'
+    source: {
+      script: '''
+      #!/bin/bash
+      sudo apt-get update -y;
+      sudo apt-get install -y nginx;
+      sudo systemctl restart nginx;
+      '''
+    }
+  }
+}*/
+
 output adminUsername string = adminUsername
 output hostname string = publicIPAddress.properties.dnsSettings.fqdn
 output sshCommand string = 'ssh ${adminUsername}@${publicIPAddress.properties.dnsSettings.fqdn}'
-
-```
-
-Save the file. Now create a new resource group:
-
-```bash
-az group create --name biceprg-$teamName-$userId --location uksouth
-
-# example
-# az group create --name biceprg-atari-dan --location uksouth
-```
-
-Now we can deploy:
-
-```bash
-az deployment group create --resource-group biceprg-$teamName-$userId --template-file main.bicep --parameters adminUsername=$userId
-
-# example
-# az deployment group create --resource-group biceprg-atari-dan --template-file main.bicep --parameters adminUsername=danwebb
-```
-
-You will be asked to provide the parameters:
-
-![alt text](image.png)
-
-It may take some time to run. You can see the status in the portal by navigating to your resource group:
-
-![alt text](image-1.png)
-
----
-
-## Viewing our VM
-
-When the deploy is completed, we can use the `output` variables to get our hostname:
-
-```bash
-az deployment group show -g biceprg-$teamName-$userId -n main --query properties.outputs.hostname.value
-
-# example
-# az deployment group show -g biceprg-atari-danwebb -n main --query properties.outputs.hostname.value
-#
-# returns
-# "atari-danwebb-vm-54xkrrbjczqrq.uksouth.cloudapp.azure.com"
-```
-
-Copy the returned hostname and paste into a browser to see nginx running!
-
----
-
-## Cleaning up
-
-Time to remove our VM!
-
-
-```bash
-az group delete --name biceprg-$teamName-$userId
-```
